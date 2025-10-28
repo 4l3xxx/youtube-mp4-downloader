@@ -54,6 +54,21 @@ Lalu buka: http://localhost:3000
 - Pastikan `yt-dlp` dan `ffmpeg` tersedia di lingkungan deploy.
 - Jalankan `node src/server.js` (atau pakai prosesor seperti PM2/systemd).
 
+#### Catatan: YouTube bot check (Railway/VPS)
+
+Di sebagian hosting (mis. Railway), YouTube bisa meminta login/cek bot sehingga `yt-dlp` gagal dengan pesan seperti:
+
+> Sign in to confirm you’re not a bot. Use --cookies-from-browser or --cookies
+
+Solusi (pilih salah satu):
+
+- Ekspor cookies YouTube dari browser Anda (format Netscape), lalu set sebagai environment variable base64:
+  - Encode file `cookies.txt` ke base64 dan simpan ke `YTDLP_COOKIES_BASE64`. Server akan menulis ke file sementara dan memakai `--cookies` otomatis.
+  - Alternatif: unggah `cookies.txt` ke server dan set `YTDLP_COOKIES_PATH` ke path file tersebut.
+- Opsional: set `YTDLP_UA` untuk user-agent kustom. Default sudah menggunakan UA Chrome desktop.
+
+Dengan cara di atas, unduhan tetap berjalan meski IP hosting terkena verifikasi.
+
 Contoh Dockerfile (opsional, sesuaikan sumber yt-dlp/ffmpeg):
 
 ```
@@ -85,4 +100,3 @@ CMD ["node", "src/server.js"]
 
 - `PORT`: port server (default `3000`).
 - `DOWNLOAD_TIMEOUT_MS`: timeout unduhan per permintaan (default `600000` ms / 10 menit).
-

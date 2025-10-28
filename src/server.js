@@ -50,6 +50,30 @@ function encodeRFC5987(value) {
     .replace(/\*/g, '%2A');
 }
 
+// Optional: load cookies for yt-dlp to bypass YouTube bot checks in hosting environments
+let COOKIES_FILE = null;
+(() => {
+  try {
+    const b64 = process.env.YTDLP_COOKIES_BASE64 || '';
+    if (b64) {
+      const decoded = Buffer.from(b64, 'base64').toString('utf8');
+      const target = path.join(os.tmpdir(), 'yt_cookies.txt');
+      fs.writeFileSync(target, decoded, { mode: 0o600 });
+      COOKIES_FILE = target;
+    } else {
+      const fromEnv = process.env.YTDLP_COOKIES_PATH;
+      const fallback = path.join(__dirname, '..', 'cookies.txt');
+      const p = fromEnv || fallback;
+      if (fs.existsSync(p)) COOKIES_FILE = p;
+    }
+  } catch (e) {
+    // eslint-disable-next-line no-console
+    console.warn('Warning: failed to load cookies file:', e && e.message ? e.message : e);
+  }
+})();
+
+const DEFAULT_UA = process.env.YTDLP_UA || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
+
 // GET /download?url=...
 // Triggers a server-side yt-dlp + ffmpeg download to MP4, then streams as an attachment.
 app.get('/download', async (req, res) => {
@@ -94,8 +118,14 @@ app.get('/download', async (req, res) => {
     '--postprocessor-args', 'ffmpeg:-c:v copy -c:a aac -b:a 192k -movflags +faststart',
     '-o', outputTemplate,
     '--no-playlist',
+    '--user-agent', DEFAULT_UA,
+    '--referer', 'https://www.youtube.com/',
     videoUrl
   ];
+
+  if (COOKIES_FILE) {
+    ytdlpArgs.push('--cookies', COOKIES_FILE);
+  }
 
   // Optionally restrict filename chars further
   // ytdlpArgs.push('--restrict-filenames');
