@@ -63,9 +63,21 @@ Di sebagian hosting (mis. Railway), YouTube bisa meminta login/cek bot sehingga 
 Solusi (pilih salah satu):
 
 - Ekspor cookies YouTube dari browser Anda (format Netscape), lalu set sebagai environment variable base64:
-  - Encode file `cookies.txt` ke base64 dan simpan ke `YTDLP_COOKIES_BASE64`. Server akan menulis ke file sementara dan memakai `--cookies` otomatis.
+  1. Ekspor cookies ke `cookies.txt` (pakai ekstensi "Get cookies.txt").
+  2. Encode ke Base64:
+     - Windows PowerShell: `[Convert]::ToBase64String([IO.File]::ReadAllBytes('cookies.txt'))`
+     - Linux/macOS: `base64 -w0 cookies.txt`
+  3. Di Railway, tambah Variable: `YTDLP_COOKIES_BASE64` dengan nilai base64 di atas.
+  4. Opsional: tambahkan `YTDLP_UA` untuk user-agent kustom.
   - Alternatif: unggah `cookies.txt` ke server dan set `YTDLP_COOKIES_PATH` ke path file tersebut.
 - Opsional: set `YTDLP_UA` untuk user-agent kustom. Default sudah menggunakan UA Chrome desktop.
+
+Implementasi backend:
+
+- Jika `YTDLP_COOKIES_BASE64` di-set, server decode dan menulis file ke `/tmp/cookies.txt`, lalu memanggil yt-dlp dengan:
+  - `--cookies /tmp/cookies.txt`
+  - `--user-agent "$YTDLP_UA atau default Chrome"`
+  - `--referer https://www.youtube.com/`
 
 Dengan cara di atas, unduhan tetap berjalan meski IP hosting terkena verifikasi.
 

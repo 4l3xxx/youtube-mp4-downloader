@@ -56,9 +56,10 @@ let COOKIES_FILE = null;
   try {
     const b64 = process.env.YTDLP_COOKIES_BASE64 || '';
     if (b64) {
-      const decoded = Buffer.from(b64, 'base64').toString('utf8');
-      const target = path.join(os.tmpdir(), 'yt_cookies.txt');
-      fs.writeFileSync(target, decoded, { mode: 0o600 });
+      // Write raw bytes to a well-known temp path used in Linux containers
+      const buf = Buffer.from(b64, 'base64');
+      const target = path.join('/tmp', 'cookies.txt');
+      fs.writeFileSync(target, buf, { mode: 0o600 });
       COOKIES_FILE = target;
     } else {
       const fromEnv = process.env.YTDLP_COOKIES_PATH;
@@ -119,13 +120,15 @@ app.get('/download', async (req, res) => {
     '-o', outputTemplate,
     '--no-playlist',
     '--user-agent', DEFAULT_UA,
-    '--referer', 'https://www.youtube.com/',
-    videoUrl
+    '--referer', 'https://www.youtube.com/'
   ];
 
   if (COOKIES_FILE) {
     ytdlpArgs.push('--cookies', COOKIES_FILE);
   }
+
+  // URL last
+  ytdlpArgs.push(videoUrl);
 
   // Optionally restrict filename chars further
   // ytdlpArgs.push('--restrict-filenames');
