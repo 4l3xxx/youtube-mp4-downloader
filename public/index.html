@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>YouTube ke MP4</title>
+    <meta name="description" content="Unduh video YouTube sebagai MP4" />
+    <style>
+      :root { color-scheme: light dark; }
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; margin: 0; padding: 2rem; display: grid; place-items: start center; background: Canvas; color: CanvasText; }
+      main { width: min(800px, 100%); }
+      h1 { margin-top: 0; font-size: 1.5rem; }
+      form { display: grid; gap: 0.75rem; }
+      input[type="url"] { padding: 0.7rem 0.8rem; font-size: 1rem; border: 1px solid #bbb; border-radius: 8px; width: 100%; }
+      button { padding: 0.7rem 1rem; font-size: 1rem; border: none; background: #2563eb; color: white; border-radius: 8px; cursor: pointer; }
+      button[disabled] { opacity: 0.6; cursor: not-allowed; }
+      .note { font-size: 0.92rem; color: #666; }
+      footer { margin-top: 2rem; font-size: 0.875rem; color: #888; }
+      .status { margin-top: 0.5rem; min-height: 1.5rem; font-size: 0.95rem; }
+      .card { background: color-mix(in oklab, Canvas, CanvasText 5%); border: 1px solid color-mix(in oklab, CanvasText, transparent 85%); border-radius: 12px; padding: 1rem; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Unduh YouTube ke MP4</h1>
+      <div class="card">
+        <form id="dl-form" action="/download" method="GET">
+          <label for="url">Tautan video YouTube</label>
+          <input id="url" name="url" type="url" required placeholder="https://www.youtube.com/watch?v=..." />
+          <label for="quality">Kualitas (opsional)</label>
+          <select id="quality" name="quality">
+            <option value="best" selected>Auto (terbaik)</option>
+            <option value="2160">2160p (4K)</option>
+            <option value="1440">1440p (2K)</option>
+            <option value="1080">1080p (Full HD)</option>
+            <option value="720">720p (HD)</option>
+            <option value="480">480p</option>
+            <option value="360">360p</option>
+            <option value="240">240p</option>
+            <option value="144">144p</option>
+          </select>
+          <button id="submitBtn" type="submit">Unduh MP4</button>
+          <div class="status" id="status"></div>
+          <div class="note">
+            Catatan: File akan tersimpan ke lokasi unduhan default perangkat Anda. Di ponsel, biasanya ke Downloads dan dapat dipindah ke Galeri.
+          </div>
+        </form>
+      </div>
+      <footer>
+        Pastikan Anda memiliki hak untuk mengunduh konten ini. Beberapa video mungkin dibatasi.
+      </footer>
+    </main>
+
+    <script>
+      const form = document.getElementById('dl-form');
+      const statusEl = document.getElementById('status');
+      const submitBtn = document.getElementById('submitBtn');
+
+      form.addEventListener('submit', (e) => {
+        // When submitting, we navigate to /download (standard file download behavior).
+        // We also show a small status text while the server prepares the MP4.
+        const url = document.getElementById('url').value.trim();
+        if (!url) return;
+        submitBtn.disabled = true;
+        statusEl.textContent = 'Menyiapkan video (harap tunggu)...';
+        // Allow the navigation to proceed for download
+        // After a short delay, re-enable to keep UX sane on cancel/back
+        setTimeout(() => { submitBtn.disabled = false; }, 2000);
+      });
+    </script>
+  </body>
+  </html>
