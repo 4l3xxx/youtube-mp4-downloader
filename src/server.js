@@ -149,76 +149,59 @@ app.get('/download', async (req, res) => {
     // ignore cookies if any fs error
   }
 
-  // Spawn yt-dlp via youtube-dl-exec with URL (raw no longer needed)
-  const child = youtubedl(videoUrl, ytdlpOpts, { shell: true, cwd: workDir });
-
-  let stderrBuf = '';
-  child.stderr.on('data', (d) => {
-    if (stderrBuf.length < 4000) stderrBuf += d.toString();
-  });
-
-  const timeout = setTimeout(() => {
-    child.kill('SIGKILL');
-  }, DOWNLOAD_TIMEOUT_MS);
-
-  child.on('error', (err) => {
-    clearTimeout(timeout);
+  // Run yt-dlp and await completion (new API returns a Promise)
+  try {
+    await youtubedl(videoUrl, ytdlpOpts, { cwd: workDir, timeout: DOWNLOAD_TIMEOUT_MS });
+  } catch (err) {
     try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {}
     if (err && err.code === 'ENOENT') {
-      return res.status(500).send('Server is missing yt-dlp. Please install yt-dlp and ffmpeg.');
+      return res.status(500).end('Server is missing yt-dlp. Please install yt-dlp and ffmpeg.');
     }
-    return res.status(500).send('Failed to start download process.');
+    const detail = (err && (err.stderr || err.shortMessage || err.message)) ? String(err.stderr || err.shortMessage || err.message) : '';
+    return res.status(500).end('Download failed.\n' + detail);
+  }
+
+  // Locate the produced file
+  let produced;
+  try {
+    const entries = fs.readdirSync(workDir);
+    if (isMp3) {
+      produced = entries.find((f) => f.toLowerCase().endsWith('.mp3'));
+    } else {
+      produced = entries.find((f) => f.toLowerCase().endsWith('.mp4'));
+    }
+  } catch (e) {
+    try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {}
+    return res.status(500).end('Failed to read output.');
+  }
+
+  if (!produced) {
+    try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {}
+    return res.status(500).end(isMp3 ? 'No MP3 produced.' : 'No MP4 produced.');
+  }
+
+  const filePath = path.join(workDir, produced);
+
+  // Set download headers
+  res.setHeader('Content-Type', isMp3 ? 'audio/mpeg' : 'video/mp4');
+  // Build safe Content-Disposition with ASCII fallback and UTF-8 filename*
+  const baseName = path.parse(produced).name;
+  const title = sanitizeFileName(baseName) || 'video';
+  const asciiTitle = title.replace(/[^\x20-\x7E]+/g, '');
+  const fallbackTitle = asciiTitle || 'video';
+  const filenameStar = encodeRFC5987(`${title}.${isMp3 ? 'mp3' : 'mp4'}`);
+  res.setHeader('Content-Disposition', `attachment; filename="${fallbackTitle}.${isMp3 ? 'mp3' : 'mp4'}"; filename*=UTF-8''${filenameStar}`);
+
+  const readStream = fs.createReadStream(filePath);
+  readStream.on('error', () => {
+    try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {}
+    if (!res.headersSent) res.status(500).end('Failed to read file.'); else res.end();
   });
-
-  child.on('close', (code) => {
-    clearTimeout(timeout);
-    if (code !== 0) {
-      try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {}
-      return res.status(500).send('Download failed.\n' + stderrBuf);
-    }
-
-    // Locate the produced file
-    let produced;
-    try {
-      const entries = fs.readdirSync(workDir);
-      if (isMp3) {
-        produced = entries.find((f) => f.toLowerCase().endsWith('.mp3'));
-      } else {
-        produced = entries.find((f) => f.toLowerCase().endsWith('.mp4'));
-      }
-    } catch (e) {
-      try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {}
-      return res.status(500).send('Failed to read output.');
-    }
-
-    if (!produced) {
-      try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {}
-      return res.status(500).send(isMp3 ? 'No MP3 produced.' : 'No MP4 produced.');
-    }
-
-    const filePath = path.join(workDir, produced);
-
-    // Set download headers
-    res.setHeader('Content-Type', isMp3 ? 'audio/mpeg' : 'video/mp4');
-    // Build safe Content-Disposition with ASCII fallback and UTF-8 filename*
-    const baseName = path.parse(produced).name;
-    const title = sanitizeFileName(baseName) || 'video';
-    const asciiTitle = title.replace(/[^\x20-\x7E]+/g, '');
-    const fallbackTitle = asciiTitle || 'video';
-    const filenameStar = encodeRFC5987(`${title}.${isMp3 ? 'mp3' : 'mp4'}`);
-    res.setHeader('Content-Disposition', `attachment; filename="${fallbackTitle}.${isMp3 ? 'mp3' : 'mp4'}"; filename*=UTF-8''${filenameStar}`);
-
-    const readStream = fs.createReadStream(filePath);
-    readStream.on('error', () => {
-      try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {}
-      if (!res.headersSent) res.status(500).end('Failed to read file.'); else res.end();
-    });
-    res.on('close', () => {
-      // Client disconnected or finished; cleanup temp dir
-      try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {}
-    });
-    readStream.pipe(res);
+  res.on('close', () => {
+    // Client disconnected or finished; cleanup temp dir
+    try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {}
   });
+  readStream.pipe(res);
 });
 
 app.listen(PORT, () => {
