@@ -107,7 +107,6 @@ app.get('/download', async (req, res) => {
   let ytdlpOpts;
   if (isMp3) {
     ytdlpOpts = {
-      binary: 'yt-dlp',
       format: 'bestaudio',
       extractAudio: true,
       audioFormat: 'mp3',
@@ -126,7 +125,6 @@ app.get('/download', async (req, res) => {
       : 'bv*[ext=mp4]+ba[ext=m4a]/bv*[ext=mp4]+ba/b[ext=mp4]/b';
 
     ytdlpOpts = {
-      binary: 'yt-dlp',
       format,
       mergeOutputFormat: 'mp4',
       postprocessorArgs: 'ffmpeg:-c:v copy -c:a aac -b:a 192k -movflags +faststart',
