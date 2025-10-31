@@ -13,6 +13,6 @@
   },
   "dependencies": {
     "express": "^4.19.2",
-    "yt-dlp-exec": "^2.4.4"
+    "youtube-dl-exec": "^2.4.10"
   }
 }

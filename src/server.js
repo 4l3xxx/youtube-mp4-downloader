@@ -2,7 +2,7 @@ const express = require('express');
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { ytDlpExec } = require('yt-dlp-exec');
+const youtubedl = require('youtube-dl-exec');
 
 // Config
 const PORT = process.env.PORT || 3000;
@@ -162,7 +162,7 @@ app.get('/download', async (req, res) => {
   // Optionally restrict filename chars further
   // ytdlpArgs.push('--restrict-filenames');
 
-  const child = ytDlpExec(ytdlpArgs, { cwd: workDir, stdio: ['ignore', 'pipe', 'pipe'] });
+  const child = youtubedl.raw(ytdlpArgs, { cwd: workDir, binary: 'yt-dlp' });
 
   let stderrBuf = '';
   child.stderr.on('data', (d) => {
