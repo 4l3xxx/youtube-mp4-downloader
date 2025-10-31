@@ -103,66 +103,54 @@ app.get('/download', async (req, res) => {
 
   // Branch by requested output format
   const isMp3 = formatParam === 'mp3';
-  let ytdlpArgs;
+  // Build options for youtube-dl-exec (auto converts camelCase to flags)
+  let ytdlpOpts;
   if (isMp3) {
-    // Audio-only (MP3): bestaudio, extract to mp3
-    ytdlpArgs = [
-      '-f', 'bestaudio',
-      '--extract-audio',
-      '--audio-format', 'mp3',
-      // pick best audio quality
-      '--audio-quality', '0',
-      '-o', outputTemplate,
-      '--no-playlist',
-      '--user-agent', DEFAULT_UA,
-      '--referer', 'https://www.youtube.com/'
-    ];
+    ytdlpOpts = {
+      binary: 'yt-dlp',
+      format: 'bestaudio',
+      extractAudio: true,
+      audioFormat: 'mp3',
+      audioQuality: '0',
+      output: outputTemplate,
+      noPlaylist: true,
+      userAgent: DEFAULT_UA,
+      referer: 'https://www.youtube.com/'
+    };
   } else {
     // Video (MP4): preserve existing behavior
-    // yt-dlp command
-    // Strategy:
-    // - Select best video+audio, prefer MP4; fallback gracefully
-    // - Merge output to mp4
-    // - Re-encode audio to AAC for compatibility
-    // - Constrain resolution if requested (pick highest <= requested)
     const allowedHeights = new Set(['144','240','360','480','720','1080','1440','2160']);
     const height = allowedHeights.has(qualityParam) ? parseInt(qualityParam, 10) : null;
     const format = height
       ? `bv*[ext=mp4][height<=${height}]+ba[ext=m4a]/bv*[height<=${height}]+ba/b[height<=${height}]/b`
       : 'bv*[ext=mp4]+ba[ext=m4a]/bv*[ext=mp4]+ba/b[ext=mp4]/b';
 
-    ytdlpArgs = [
-      '-f', format,
-      '--merge-output-format', 'mp4',
-      // Force ffmpeg to keep video stream and convert audio to AAC always
-      '--postprocessor-args', 'ffmpeg:-c:v copy -c:a aac -b:a 192k -movflags +faststart',
-      '-o', outputTemplate,
-      '--no-playlist',
-      '--user-agent', DEFAULT_UA,
-      '--referer', 'https://www.youtube.com/'
-    ];
+    ytdlpOpts = {
+      binary: 'yt-dlp',
+      format,
+      mergeOutputFormat: 'mp4',
+      postprocessorArgs: 'ffmpeg:-c:v copy -c:a aac -b:a 192k -movflags +faststart',
+      output: outputTemplate,
+      noPlaylist: true,
+      userAgent: DEFAULT_UA,
+      referer: 'https://www.youtube.com/'
+    };
   }
 
   // Ensure yt-dlp uses cookies from Railway if present
   try {
     const cookiePath = path.join('/tmp', 'cookies.txt');
     if (fs.existsSync(cookiePath)) {
-      ytdlpArgs.push('--cookies', cookiePath);
+      ytdlpOpts.cookies = cookiePath;
     } else if (COOKIES_FILE) {
-      // Fallback to any detected cookies file
-      ytdlpArgs.push('--cookies', COOKIES_FILE);
+      ytdlpOpts.cookies = COOKIES_FILE;
     }
   } catch (_) {
     // ignore cookies if any fs error
   }
 
-  // URL last
-  ytdlpArgs.push(videoUrl);
-
-  // Optionally restrict filename chars further
-  // ytdlpArgs.push('--restrict-filenames');
-
-  const child = youtubedl.raw(ytdlpArgs, { cwd: workDir, binary: 'yt-dlp' });
+  // Spawn yt-dlp via youtube-dl-exec with URL
+  const child = youtubedl.raw(videoUrl, ytdlpOpts, { cwd: workDir });
 
   let stderrBuf = '';
   child.stderr.on('data', (d) => {
