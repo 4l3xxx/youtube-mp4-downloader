@@ -5,7 +5,6 @@
   "description": "Simple web app to download YouTube videos as MP4 via yt-dlp + ffmpeg",
   "main": "src/server.js",
   "scripts": {
-    "prestart": "pip install -U yt-dlp",
     "start": "node src/server.js",
     "dev": "node src/server.js"
   },
@@ -13,6 +12,7 @@
     "node": ">=18"
   },
   "dependencies": {
-    "express": "^4.19.2"
+    "express": "^4.19.2",
+    "yt-dlp-exec": "^2.4.4"
   }
 }
