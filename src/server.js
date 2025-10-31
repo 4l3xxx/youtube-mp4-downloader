@@ -80,6 +80,7 @@ const DEFAULT_UA = process.env.YTDLP_UA || 'Mozilla/5.0 (Windows NT 10.0; Win64;
 app.get('/download', async (req, res) => {
   const videoUrl = (req.query.url || '').toString().trim();
   const qualityParam = (req.query.quality || 'best').toString().trim();
+  const formatParam = (req.query.format || 'mp4').toString().trim().toLowerCase();
   if (!videoUrl || !isLikelyUrl(videoUrl)) {
     return res.status(400).send('Invalid or missing URL.');
   }
@@ -100,28 +101,47 @@ app.get('/download', async (req, res) => {
   // Use video title for output name
   const outputTemplate = path.join(workDir, '%(title)s.%(ext)s');
 
-  // yt-dlp command
-  // Strategy:
-  // - Select best video+audio, prefer MP4; fallback gracefully
-  // - Merge output to mp4
-  // - Re-encode audio to AAC for compatibility
-  // - Constrain resolution if requested (pick highest <= requested)
-  const allowedHeights = new Set(['144','240','360','480','720','1080','1440','2160']);
-  const height = allowedHeights.has(qualityParam) ? parseInt(qualityParam, 10) : null;
-  const format = height
-    ? `bv*[ext=mp4][height<=${height}]+ba[ext=m4a]/bv*[height<=${height}]+ba/b[height<=${height}]/b`
-    : 'bv*[ext=mp4]+ba[ext=m4a]/bv*[ext=mp4]+ba/b[ext=mp4]/b';
+  // Branch by requested output format
+  const isMp3 = formatParam === 'mp3';
+  let ytdlpArgs;
+  if (isMp3) {
+    // Audio-only (MP3): bestaudio, extract to mp3
+    ytdlpArgs = [
+      '-f', 'bestaudio',
+      '--extract-audio',
+      '--audio-format', 'mp3',
+      // pick best audio quality
+      '--audio-quality', '0',
+      '-o', outputTemplate,
+      '--no-playlist',
+      '--user-agent', DEFAULT_UA,
+      '--referer', 'https://www.youtube.com/'
+    ];
+  } else {
+    // Video (MP4): preserve existing behavior
+    // yt-dlp command
+    // Strategy:
+    // - Select best video+audio, prefer MP4; fallback gracefully
+    // - Merge output to mp4
+    // - Re-encode audio to AAC for compatibility
+    // - Constrain resolution if requested (pick highest <= requested)
+    const allowedHeights = new Set(['144','240','360','480','720','1080','1440','2160']);
+    const height = allowedHeights.has(qualityParam) ? parseInt(qualityParam, 10) : null;
+    const format = height
+      ? `bv*[ext=mp4][height<=${height}]+ba[ext=m4a]/bv*[height<=${height}]+ba/b[height<=${height}]/b`
+      : 'bv*[ext=mp4]+ba[ext=m4a]/bv*[ext=mp4]+ba/b[ext=mp4]/b';
 
-  const ytdlpArgs = [
-    '-f', format,
-    '--merge-output-format', 'mp4',
-    // Force ffmpeg to keep video stream and convert audio to AAC always
-    '--postprocessor-args', 'ffmpeg:-c:v copy -c:a aac -b:a 192k -movflags +faststart',
-    '-o', outputTemplate,
-    '--no-playlist',
-    '--user-agent', DEFAULT_UA,
-    '--referer', 'https://www.youtube.com/'
-  ];
+    ytdlpArgs = [
+      '-f', format,
+      '--merge-output-format', 'mp4',
+      // Force ffmpeg to keep video stream and convert audio to AAC always
+      '--postprocessor-args', 'ffmpeg:-c:v copy -c:a aac -b:a 192k -movflags +faststart',
+      '-o', outputTemplate,
+      '--no-playlist',
+      '--user-agent', DEFAULT_UA,
+      '--referer', 'https://www.youtube.com/'
+    ];
+  }
 
   if (COOKIES_FILE) {
     ytdlpArgs.push('--cookies', COOKIES_FILE);
@@ -167,7 +187,11 @@ app.get('/download', async (req, res) => {
     let produced;
     try {
       const entries = fs.readdirSync(workDir);
-      produced = entries.find((f) => f.toLowerCase().endsWith('.mp4'));
+      if (isMp3) {
+        produced = entries.find((f) => f.toLowerCase().endsWith('.mp3'));
+      } else {
+        produced = entries.find((f) => f.toLowerCase().endsWith('.mp4'));
+      }
     } catch (e) {
       try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {}
       return res.status(500).send('Failed to read output.');
@@ -175,20 +199,20 @@ app.get('/download', async (req, res) => {
 
     if (!produced) {
       try { fs.rmSync(workDir, { recursive: true, force: true }); } catch (_) {}
-      return res.status(500).send('No MP4 produced.');
+      return res.status(500).send(isMp3 ? 'No MP3 produced.' : 'No MP4 produced.');
     }
 
     const filePath = path.join(workDir, produced);
 
     // Set download headers
-    res.setHeader('Content-Type', 'video/mp4');
+    res.setHeader('Content-Type', isMp3 ? 'audio/mpeg' : 'video/mp4');
     // Build safe Content-Disposition with ASCII fallback and UTF-8 filename*
     const baseName = path.parse(produced).name;
     const title = sanitizeFileName(baseName) || 'video';
     const asciiTitle = title.replace(/[^\x20-\x7E]+/g, '');
     const fallbackTitle = asciiTitle || 'video';
-    const filenameStar = encodeRFC5987(`${title}.mp4`);
-    res.setHeader('Content-Disposition', `attachment; filename="${fallbackTitle}.mp4"; filename*=UTF-8''${filenameStar}`);
+    const filenameStar = encodeRFC5987(`${title}.${isMp3 ? 'mp3' : 'mp4'}`);
+    res.setHeader('Content-Disposition', `attachment; filename="${fallbackTitle}.${isMp3 ? 'mp3' : 'mp4'}"; filename*=UTF-8''${filenameStar}`);
 
     const readStream = fs.createReadStream(filePath);
     readStream.on('error', () => {

@@ -39,7 +39,15 @@
             <option value="240">240p</option>
             <option value="144">144p</option>
           </select>
-          <button id="submitBtn" type="submit">Unduh MP4</button>
+          <div role="group" aria-label="Format output">
+            <label style="margin-right: 0.75rem;">
+              <input type="radio" name="format" value="mp4" checked /> MP4 (video)
+            </label>
+            <label>
+              <input type="radio" name="format" value="mp3" /> MP3 (audio saja)
+            </label>
+          </div>
+          <button id="submitBtn" type="submit">Unduh</button>
           <div class="status" id="status"></div>
           <div class="note">
             Catatan: File akan tersimpan ke lokasi unduhan default perangkat Anda. Di ponsel, biasanya ke Downloads dan dapat dipindah ke Galeri.
@@ -62,7 +70,8 @@
         const url = document.getElementById('url').value.trim();
         if (!url) return;
         submitBtn.disabled = true;
-        statusEl.textContent = 'Menyiapkan video (harap tunggu)...';
+        const fmt = (new FormData(form).get('format') || 'mp4').toString();
+        statusEl.textContent = fmt === 'mp3' ? 'Menyiapkan audio (harap tunggu)...' : 'Menyiapkan video (harap tunggu)...';
         // Allow the navigation to proceed for download
         // After a short delay, re-enable to keep UX sane on cancel/back
         setTimeout(() => { submitBtn.disabled = false; }, 2000);
