@@ -149,8 +149,8 @@ app.get('/download', async (req, res) => {
     // ignore cookies if any fs error
   }
 
-  // Spawn yt-dlp via youtube-dl-exec with URL
-  const child = youtubedl.raw(videoUrl, ytdlpOpts, { cwd: workDir });
+  // Spawn yt-dlp via youtube-dl-exec with URL (raw no longer needed)
+  const child = youtubedl(videoUrl, ytdlpOpts, { shell: true, cwd: workDir });
 
   let stderrBuf = '';
   child.stderr.on('data', (d) => {
