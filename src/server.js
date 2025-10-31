@@ -73,7 +73,7 @@ let COOKIES_FILE = null;
   }
 })();
 
-const DEFAULT_UA = process.env.YTDLP_UA || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36';
+const DEFAULT_UA = process.env.YTDLP_UA || 'Mozilla/5.0';
 
 // GET /download?url=...
 // Triggers a server-side yt-dlp + ffmpeg download to MP4, then streams as an attachment.
@@ -143,8 +143,17 @@ app.get('/download', async (req, res) => {
     ];
   }
 
-  if (COOKIES_FILE) {
-    ytdlpArgs.push('--cookies', COOKIES_FILE);
+  // Ensure yt-dlp uses cookies from Railway if present
+  try {
+    const cookiePath = path.join('/tmp', 'cookies.txt');
+    if (fs.existsSync(cookiePath)) {
+      ytdlpArgs.push('--cookies', cookiePath);
+    } else if (COOKIES_FILE) {
+      // Fallback to any detected cookies file
+      ytdlpArgs.push('--cookies', COOKIES_FILE);
+    }
+  } catch (_) {
+    // ignore cookies if any fs error
   }
 
   // URL last
